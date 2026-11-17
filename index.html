@@ -33,7 +33,7 @@
             width: 100vw;
             height: 100vh;
             z-index: -1;
-            opacity: 0.6;
+            opacity: 0.7;
             pointer-events: none;
         }
 
@@ -223,14 +223,88 @@
             letter-spacing: 2px;
         }
 
+        .device-selector {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.5s ease;
+        }
+
+        .device-selector.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .device-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 36px;
+            margin-bottom: 50px;
+            color: var(--text);
+            text-align: center;
+        }
+
+        .device-buttons {
+            display: flex;
+            gap: 40px;
+        }
+
+        .device-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 30px 60px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            cursor: pointer;
+            transition: 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .device-btn:hover {
+            background: rgba(197, 160, 89, 0.1);
+            border-color: var(--accent);
+            transform: translateY(-5px);
+        }
+
+        .device-icon {
+            font-size: 48px;
+            color: var(--accent);
+        }
+
         @media (max-width: 768px) {
             header { padding: 20px; }
             .nav-links { display: none; }
             .menu-section { padding: 100px 20px; }
+            .device-buttons { flex-direction: column; gap: 20px; }
+            .device-btn { padding: 20px 40px; }
         }
     </style>
 </head>
 <body>
+
+    <div class="device-selector" id="device-selector">
+        <div class="device-title">Выберите устройство для просмотра</div>
+        <div class="device-buttons">
+            <button class="device-btn" onclick="selectDevice('pc')">
+                <span class="device-icon">💻</span>
+                Компьютер
+            </button>
+            <button class="device-btn" onclick="selectDevice('mobile')">
+                <span class="device-icon">📱</span>
+                Телефон
+            </button>
+        </div>
+    </div>
 
     <div id="canvas-container"></div>
 
@@ -288,51 +362,74 @@
     </footer>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        let scene, camera, renderer, mainObject, particlesMesh;
+        let isMobile = false;
+
+        function selectDevice(device) {
+            isMobile = (device === 'mobile');
+            document.getElementById('device-selector').classList.add('hidden');
+            init3DScene();
+            runAnimations();
+        }
+
+        function init3DScene() {
             const container = document.getElementById('canvas-container');
-            const scene = new THREE.Scene();
-            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
             
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             container.appendChild(renderer.domElement);
 
-            const geometry = new THREE.TorusKnotGeometry(10, 3, 100, 16);
+            const geometry = isMobile 
+                ? new THREE.IcosahedronGeometry(15, 1) 
+                : new THREE.TorusKnotGeometry(10, 3, 100, 16);
+                
             const material = new THREE.MeshBasicMaterial({ 
                 color: 0xc5a059, 
                 wireframe: true,
                 transparent: true,
                 opacity: 0.15
             });
-            const torusKnot = new THREE.Mesh(geometry, material);
-            scene.add(torusKnot);
+            
+            mainObject = new THREE.Mesh(geometry, material);
+            scene.add(mainObject);
 
             const particlesGeo = new THREE.BufferGeometry();
-            const particlesCount = 700;
+            const particlesCount = isMobile ? 300 : 700;
             const posArray = new Float32Array(particlesCount * 3);
 
             for(let i = 0; i < particlesCount * 3; i++) {
-                posArray[i] = (Math.random() - 0.5) * 100;
+                posArray[i] = (Math.random() - 0.5) * (isMobile ? 80 : 100);
             }
 
             particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
             const particlesMat = new THREE.PointsMaterial({
-                size: 0.2,
+                size: isMobile ? 0.3 : 0.2,
                 color: 0xc5a059,
                 transparent: true,
                 opacity: 0.8
             });
-            const particlesMesh = new THREE.Points(particlesGeo, particlesMat);
+            
+            particlesMesh = new THREE.Points(particlesGeo, particlesMat);
             scene.add(particlesMesh);
 
-            camera.position.z = 30;
+            camera.position.z = isMobile ? 40 : 30;
 
             const mouse = { x: 0, y: 0 };
-            window.addEventListener('mousemove', (event) => {
-                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-            });
+            
+            if (isMobile) {
+                window.addEventListener('deviceorientation', (event) => {
+                    mouse.x = event.gamma / 45;
+                    mouse.y = event.beta / 45;
+                });
+            } else {
+                window.addEventListener('mousemove', (event) => {
+                    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+                });
+            }
 
             const clock = new THREE.Clock();
 
@@ -340,15 +437,19 @@
                 requestAnimationFrame(animate);
                 const elapsedTime = clock.getElapsedTime();
 
-                torusKnot.rotation.x = elapsedTime * 0.1;
-                torusKnot.rotation.y = elapsedTime * 0.15;
+                mainObject.rotation.x = elapsedTime * 0.1;
+                mainObject.rotation.y = elapsedTime * 0.15;
 
-                torusKnot.rotation.x += mouse.y * 0.05;
-                torusKnot.rotation.y += mouse.x * 0.05;
+                if (mouse.x !== undefined) {
+                    mainObject.rotation.x += (mouse.y || 0) * 0.05;
+                    mainObject.rotation.y += (mouse.x || 0) * 0.05;
+                }
 
                 particlesMesh.rotation.y = elapsedTime * 0.02;
-                particlesMesh.rotation.x = mouse.y * 0.1;
-                particlesMesh.rotation.y += mouse.x * 0.1;
+                if (mouse.x !== undefined) {
+                    particlesMesh.rotation.x = (mouse.y || 0) * 0.1;
+                    particlesMesh.rotation.y += (mouse.x || 0) * 0.1;
+                }
 
                 renderer.render(scene, camera);
             }
@@ -360,7 +461,9 @@
                 camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
             });
+        }
 
+        function runAnimations() {
             gsap.to('.hero h1', {
                 opacity: 1,
                 y: 0,
@@ -398,7 +501,7 @@
             document.querySelectorAll('.menu-item').forEach(item => {
                 observer.observe(item);
             });
-        });
+        }
     </script>
 </body>
 </html>
